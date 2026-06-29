@@ -90,6 +90,10 @@ def extract_events_from_issue(entry):
     events = []
     current_section = ""
 
+    # DEBUG: Print the first 500 chars of HTML to see what we're working with
+    print(f"[DEBUG] Parsing entry: {issue_title}", file=sys.stderr)
+    print(f"[DEBUG] HTML (first 500 chars): {html[:500]}", file=sys.stderr)
+
     for el in soup.find_all(["h1", "h2", "h3", "h4", "p", "li", "strong"]):
         text = el.get_text(strip=True)
         if not text:
@@ -112,6 +116,7 @@ def extract_events_from_issue(entry):
                 "pub_date": pub_date,
             })
 
+    print(f"[DEBUG] Extracted {len(events)} events from this entry", file=sys.stderr)
     return events
 
 
@@ -160,6 +165,7 @@ def build_rss(all_events):
 
 def main():
     feed = fetch_feed()
+    print(f"[DEBUG] Feed has {len(feed.entries)} entries", file=sys.stderr)
 
     all_events = []
     for entry in feed.entries:
