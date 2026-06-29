@@ -1,0 +1,45 @@
+name: Generate and Publish Event Feed
+
+# Runs on a schedule (free, GitHub Actions) and publishes events_feed.xml
+# to GitHub Pages, where IFTTT (or any RSS reader) can watch it.
+
+on:
+  schedule:
+    - cron: "0 13 * * *"   # daily at 1 PM UTC (~6 AM Pacific) — adjust as needed
+  workflow_dispatch: {}     # lets you trigger it manually from the Actions tab
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install feedparser beautifulsoup4
+
+      - name: Generate event feed
+        run: python3 generate_event_feed.py
+
+      - name: Prepare Pages artifact
+        run: |
+          mkdir -p public
+          cp events_feed.xml public/events_feed.xml
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
