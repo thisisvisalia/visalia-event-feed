@@ -38,6 +38,7 @@ jobs:
         run: |
           mkdir -p public
           cp events_feed.xml public/events_feed.xml
+          cp index.html public/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
