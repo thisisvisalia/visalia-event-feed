@@ -81,7 +81,13 @@ def fetch_feed():
 
 
 def extract_events_from_issue(entry):
+    # Try summary first (usually HTML), then content
     html = entry.get("summary", "") or entry.get("content", [{}])[0].get("value", "")
+    
+    # If we still don't have content, try description
+    if not html:
+        html = entry.get("description", "")
+    
     soup = BeautifulSoup(html, "html.parser")
     issue_link = entry.get("link", "")
     issue_title = entry.get("title", "")
@@ -90,31 +96,60 @@ def extract_events_from_issue(entry):
     events = []
     current_section = ""
 
-    # DEBUG: Print the first 500 chars of HTML to see what we're working with
-    print(f"[DEBUG] Parsing entry: {issue_title}", file=sys.stderr)
-    print(f"[DEBUG] HTML (first 500 chars): {html[:500]}", file=sys.stderr)
+    print(f"[DEBUG] Entry title: {issue_title}", file=sys.stderr)
+    print(f"[DEBUG] HTML content length: {len(html)}", file=sys.stderr)
 
-    for el in soup.find_all(["h1", "h2", "h3", "h4", "p", "li", "strong"]):
-        text = el.get_text(strip=True)
-        if not text:
-            continue
+    # Try parsing HTML elements first
+    found_elements = soup.find_all(["h1", "h2", "h3", "h4", "p", "li", "strong"])
+    
+    if found_elements:
+        print(f"[DEBUG] Found {len(found_elements)} HTML elements", file=sys.stderr)
+        for el in found_elements:
+            text = el.get_text(strip=True)
+            if not text:
+                continue
 
-        if el.name in ("h1", "h2", "h3", "h4"):
-            current_section = text.lower()
-            continue
+            if el.name in ("h1", "h2", "h3", "h4"):
+                current_section = text.lower()
+                continue
 
-        if any(skip in current_section for skip in SKIP_SECTION_HEADERS):
-            continue
+            if any(skip in current_section for skip in SKIP_SECTION_HEADERS):
+                continue
 
-        if el.name in ("li", "strong", "p") and len(text) > MIN_ITEM_LENGTH:
-            events.append({
-                "title": text[:120],
-                "detail": text,
-                "section": current_section,
-                "issue_title": issue_title,
-                "issue_link": issue_link,
-                "pub_date": pub_date,
-            })
+            if el.name in ("li", "strong", "p") and len(text) > MIN_ITEM_LENGTH:
+                events.append({
+                    "title": text[:120],
+                    "detail": text,
+                    "section": current_section,
+                    "issue_title": issue_title,
+                    "issue_link": issue_link,
+                    "pub_date": pub_date,
+                })
+    else:
+        # Fallback: if no HTML elements found, treat the entire content as text
+        # and split by newlines or sentences
+        print(f"[DEBUG] No HTML elements found, treating as plain text", file=sys.stderr)
+        text_content = soup.get_text()
+        
+        if text_content and len(text_content) > MIN_ITEM_LENGTH:
+            # Split by newlines and filter empty lines
+            lines = [line.strip() for line in text_content.split('\n') if line.strip() and len(line.strip()) > MIN_ITEM_LENGTH]
+            
+            print(f"[DEBUG] Found {len(lines)} text lines", file=sys.stderr)
+            
+            for line in lines:
+                # Skip metadata-like lines (dates, issue numbers)
+                if any(skip in line.lower() for skip in SKIP_SECTION_HEADERS):
+                    continue
+                
+                events.append({
+                    "title": line[:120],
+                    "detail": line,
+                    "section": "",
+                    "issue_title": issue_title,
+                    "issue_link": issue_link,
+                    "pub_date": pub_date,
+                })
 
     print(f"[DEBUG] Extracted {len(events)} events from this entry", file=sys.stderr)
     return events
